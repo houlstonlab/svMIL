@@ -53,8 +53,9 @@ general = dict(
 #Then select a cancer type for which we get the regulatory information.
 #this should match the folder names used for the regulatory data. so it may differ depending
 #on the tissue used
-regulatoryTypes = ['kidney', 'hmec', 'coad', 'esophagus', 'gm12878', 'luad', 'nervousSystem',
-				   'ov', 'pancreas', 'prostate', 'skin', 'urinaryTract', 'uterus']
+# regulatoryTypes = ['kidney', 'hmec', 'coad', 'esophagus', 'gm12878', 'luad', 'nervousSystem',
+				#    'ov', 'pancreas', 'prostate', 'skin', 'urinaryTract', 'uterus']
+regulatoryTypes = ['coad']
 #create a settings file for each combination
 for regulatoryType in regulatoryTypes:
 	#regulatoryType = 'kidney'

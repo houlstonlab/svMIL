@@ -61,23 +61,31 @@ causalGenes = np.concatenate((causalGenes, nonCausalGenes), axis=0)
 variantData = []
 
 if settings.general['source'] == 'PCAWG':
-
 	print("Reading SV data PCAWG")
 	svDir = settings.files['svDir']
 	#get the cancer type from the settings
 	cancerType = settings.general['cancerType']
 	svData = InputParser().getSVsFromFile_pcawg(svDir, cancerType)
+	print(svData) #check if the SVs are read in correctly
 if settings.general['source'] == 'HMF':
 	print("Reading SV data")
 	svDir = settings.files['svDir']
 	cancerType = settings.general['cancerType']
 	svData = InputParser().getSVs_hmf(svDir, cancerType)
+	print(svData) #check if the SVs are read in correctly
 if settings.general['source'] == 'HMF_simple':
 	print("Reading SV data")
 	svDir = settings.files['svDir']
 	cancerType = settings.general['cancerType']
 	svData = InputParser().getSVs_hmf_simple(svDir)
-print(svData) #check if the SVs are read in correctly
+	print(svData) #check if the SVs are read in correctly
+if settings.general['source'] == 'Nunes':
+	print("Reading SV data Nunes et al.")
+	svDir = settings.files['svDir']
+	#get the cancer type from the settings
+	cancerType = settings.general['cancerType']
+	svData = InputParser().getSVs_nunes(svDir, cancerType)
+	print(svData) #check if the SVs are read in correctly
 
 #Check the SV distribution
 delCount = 0

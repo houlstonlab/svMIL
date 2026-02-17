@@ -53,8 +53,13 @@ class GeneRanking:
 
 
 		print("collecting all gains and losses")
+		# features = ['eQTL', 'enhancer', 'promoter', 'cpg', 'tf', 'h3k4me3', 'h3k27ac', 'h3k27me3', 'h3k4me1', 'dnaseI', 'rnaPol',
+						# 'CTCF', 'CTCF+Enhancer', 'CTCF+Promoter', 'Enhancer', 'Heterochromatin', 'Poised_Promoter', 'Promoter', 'Repeat', 'Repressed', 'Transcribed', 'superEnhancer', 'ctcf']
 		features = ['eQTL', 'enhancer', 'promoter', 'cpg', 'tf', 'h3k4me3', 'h3k27ac', 'h3k27me3', 'h3k4me1', 'dnaseI', 'rnaPol',
-						'CTCF', 'CTCF+Enhancer', 'CTCF+Promoter', 'Enhancer', 'Heterochromatin', 'Poised_Promoter', 'Promoter', 'Repeat', 'Repressed', 'Transcribed', 'superEnhancer', 'ctcf']
+						'superEnhancer', 'ctcf',
+						'1_TssA', '2_TssFlnk', '3_TssFlnkU', '4_TssFlnkD', '5_Tx', '6_TxWk', 
+						'7_EnhG1', '8_EnhG2', '9_EnhA1', '10_EnhA2', '11_EnhWk', '12_ZNF/Rpts', 
+						'13_Het', '14_TssBiv', '15_EnhBiv', '16_ReprPC', '17_ReprPCWk', '18_Quies']
 
 		# features = ['eQTL', 'enhancer', 'promoter', 'cpg', 'tf', 'hic', 'h3k9me3', 'h3k4me3', 'h3k27ac', 'h3k27me3', 'h3k4me1', 'h3k36me3', 'dnaseI', 'rnaPol',
 		# 				'CTCF', 'CTCF+Enhancer', 'CTCF+Promoter', 'Enhancer', 'Heterochromatin', 'Poised_Promoter', 'Promoter', 'Repeat', 'Repressed', 'Transcribed', 'superEnhancer', 'ctcf']
@@ -75,8 +80,11 @@ class GeneRanking:
 			gainScores, svGeneMap, svGeneIndices = self.scoreByElementGainsSVs(genes, svGeneMap, svGeneIndices, feature)
 			allGainScores.append(gainScores)
 
+		# Build header to match actual data layout: all losses first, then all gains
+		for feature in features:
 			header += '\t'
 			header += feature + '_loss'
+		for feature in features:
 			header += '\t'
 			header += feature + '_gain'
 
@@ -85,6 +93,23 @@ class GeneRanking:
 
 		#strengthFeatures = ['enhancer', 'ctcf', 'rnaPol', 'h3k9me3', 'h3k4me3', 'h3k27ac', 'h3k27me3', 'h3k4me1', 'h3k36me3']
 
+		# DEBUG: Check if IGF2 enhancer gains are in allGainScores
+		enhancer_idx = features.index('enhancer')
+		if enhancer_idx < len(allGainScores):
+			igf2_pairs_in_gains = [k for k in allGainScores[enhancer_idx].keys() if k.startswith('IGF2_')]
+			with open('/data/scratch/DGE/DUDGE/MOPOPGEN/tyates/perturb/svMIL/debug_igf2_geneRanking.txt', 'a') as f:
+				f.write(f"\n{'='*80}\n")
+				f.write(f"DEBUG: After collecting all gains/losses\n")
+				f.write(f"enhancer feature index: {enhancer_idx}\n")
+				f.write(f"IGF2 pairs in allGainScores[{enhancer_idx}]: {len(igf2_pairs_in_gains)}\n")
+				for pair in igf2_pairs_in_gains:
+					f.write(f"  {pair}: {allGainScores[enhancer_idx][pair]}\n")
+				f.write(f"Total svGeneIndices: {len(svGeneIndices)}\n")
+				igf2_in_indices = [idx for idx, pair in enumerate(svGeneIndices) if pair.startswith('IGF2_')]
+				f.write(f"IGF2 pairs in svGeneIndices: {len(igf2_in_indices)}\n")
+				for idx in igf2_in_indices[:5]:  # Show first 5
+					f.write(f"  Index {idx}: {svGeneIndices[idx]}\n")
+				f.write(f"{'='*80}\n\n")
 
 		allStrengthLossScores = []
 		allStrengthGainScores = []
@@ -95,6 +120,14 @@ class GeneRanking:
 			gainScores = self.scoreByElementGainsStrengthsSVs(genes, feature)
 			allStrengthGainScores.append(gainScores)
 
+		# Add strength features to header
+		for feature in strengthFeatures:
+			header += '\t'
+			header += feature + '_strength_loss'
+		for feature in strengthFeatures:
+			header += '\t'
+			header += feature + '_strength_gain'
+
 
 		delCount = 0
 		dupCount = 0
@@ -102,6 +135,10 @@ class GeneRanking:
 		itxCount = 0
 		pairScores = np.zeros([len(svGeneIndices), 80]) #46
 		pairIds = []
+		
+		# DEBUG: Track IGF2 pairs during scoring
+		debug_igf2_tracking = []
+		
 		for ind in range(0, len(svGeneIndices)):
 			sv = svGeneIndices[ind]
 
@@ -109,9 +146,15 @@ class GeneRanking:
 			for featureInd in range(0, len(features)):
 				if sv in allLossScores[featureInd]:
 					pairScores[ind,featureInd] = allLossScores[featureInd][sv]
+					# DEBUG: Track IGF2 losses
+					if sv.startswith('IGF2_') and features[featureInd] == 'enhancer':
+						debug_igf2_tracking.append(f"IGF2 Loss: ind={ind}, featureInd={featureInd}, col={featureInd}, value={allLossScores[featureInd][sv]}, sv={sv}")
 
 				if sv in allGainScores[featureInd]:
 					pairScores[ind,featureInd+len(features)] = allGainScores[featureInd][sv]
+					# DEBUG: Track IGF2 gains
+					if sv.startswith('IGF2_') and features[featureInd] == 'enhancer':
+						debug_igf2_tracking.append(f"IGF2 Gain: ind={ind}, featureInd={featureInd}, col={featureInd+len(features)}, value={allGainScores[featureInd][sv]}, sv={sv}")
 
 			for featureInd in range(0, len(strengthFeatures)):
 				if sv in allStrengthLossScores[featureInd]:
@@ -163,6 +206,27 @@ class GeneRanking:
 		#pairScoresWithPairIds = np.empty([len(svGeneIndices), 1], dtype="object")
 		pairScoresWithPairIds[:,0] = pairIds
 		pairScoresWithPairIds[:,1:81] = pairScores #47
+
+		# DEBUG: Check IGF2 rows before writing
+		with open('/data/scratch/DGE/DUDGE/MOPOPGEN/tyates/perturb/svMIL/debug_igf2_geneRanking.txt', 'a') as f:
+			f.write(f"\n{'='*80}\n")
+			f.write(f"DEBUG: Before writing to file\n")
+			f.write(f"Number of features: {len(features)}\n")
+			f.write(f"Enhancer gain column should be: {features.index('enhancer') + len(features) + 1} (adding 1 for pairId column)\n")
+			f.write(f"\nIGF2 tracking during loop:\n")
+			for line in debug_igf2_tracking:
+				f.write(f"  {line}\n")
+			f.write(f"\nIGF2 rows in final array:\n")
+			for idx, pair_id in enumerate(pairIds):
+				if str(pair_id).startswith('IGF2_'):
+					enhancer_loss_col = features.index('enhancer') + 1  # +1 for pairId column
+					enhancer_gain_col = features.index('enhancer') + len(features) + 1  # +1 for pairId column
+					f.write(f"  Row {idx}: {pair_id}\n")
+					f.write(f"    enhancer_loss (col {enhancer_loss_col}): {pairScoresWithPairIds[idx, enhancer_loss_col]}\n")
+					f.write(f"    enhancer_gain (col {enhancer_gain_col}): {pairScoresWithPairIds[idx, enhancer_gain_col]}\n")
+					if idx < 3:  # Show first few full rows
+						f.write(f"    Full row: {pairScoresWithPairIds[idx, :]}\n")
+			f.write(f"{'='*80}\n\n")
 
 		np.savetxt(outDir + '/' + runId + "/nonCoding_geneSVPairs.txt_" + str(permutationRound), pairScoresWithPairIds, delimiter='\t', fmt='%s', header = header)
 
@@ -272,6 +336,34 @@ class GeneRanking:
 		for geneInd in range(0, len(genes)):
 			gene = genes[geneInd]
 
+			# DEBUG: Check if this is IGF2 when processing enhancers
+			if gene.name == 'IGF2' and elementType == 'enhancer':
+				debug_output = []
+				debug_output.append("="*80)
+				debug_output.append(f"DEBUG: scoreByElementGainsSVs for IGF2 and enhancers")
+				debug_output.append(f"len(gene.gainedElementsSVs): {len(gene.gainedElementsSVs)}")
+				
+				if len(gene.gainedElementsSVs) > 0:
+					debug_output.append(f"Number of SVs with gained elements: {len(gene.gainedElementsSVs)}")
+					for sv_key in gene.gainedElementsSVs:
+						debug_output.append(f"\nSV: {sv_key}")
+						debug_output.append(f"  Element types in gainedElementsSVs[sv]:")
+						for elem_type, count in gene.gainedElementsSVs[sv_key].items():
+							debug_output.append(f"    {elem_type}: {count}")
+						
+						# Check if this SV will match
+						pairId = gene.name + "_" + sv_key
+						debug_output.append(f"  pairId would be: {pairId}")
+						debug_output.append(f"  Will be added to pairScores? {'enhancer' in gene.gainedElementsSVs[sv_key]}")
+				else:
+					debug_output.append("WARNING: IGF2 has empty gainedElementsSVs dict!")
+				
+				debug_output.append("="*80)
+				debug_output.append("")
+				
+				with open('/data/scratch/DGE/DUDGE/MOPOPGEN/tyates/perturb/svMIL/debug_igf2_geneRanking.txt', 'a') as f:
+					f.write('\n'.join(debug_output) + '\n')
+
 			if len(gene.gainedElementsSVs) > 0:
 
 				for sv in gene.gainedElementsSVs:
@@ -294,6 +386,11 @@ class GeneRanking:
 							gain = True
 					if gain == True:
 						pairScores[pairId] = 1 #assume that each SV can disrupt a gene only once
+						
+						# DEBUG: Log when IGF2 enhancer gain is added
+						if gene.name == 'IGF2' and elementType == 'enhancer':
+							with open('/data/scratch/DGE/DUDGE/MOPOPGEN/tyates/perturb/svMIL/debug_igf2_geneRanking.txt', 'a') as f:
+								f.write(f"SUCCESS: Added {pairId} to pairScores with value 1\n\n")
 
 		
 		return pairScores, svGeneMap, svGeneIndices	

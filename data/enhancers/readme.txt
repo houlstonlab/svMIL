@@ -8,3 +8,6 @@ Ovarian:
 encoderoadmap_elasticnet.95.csv: yiplab.cse.cuhk.edu.hk/jeme/encoderoadmap_elasticnet/encoderoadmap_elasticnet.95.csv, downloaded 08-04-2020
 Liver:
 encoderoadmap_elasticnet.64.csv: http://yiplab.cse.cuhk.edu.hk/jeme/encoderoadmap_elasticnet/encoderoadmap_elasticnet.64.csv, downloaded 11-04-2020
+
+>>TWY
+encoderoadmap_elasticnet.104.hg38_lifted.csv: Lifted over encoderoadmap_elasticnet.104.csv to hg38 using /data/scratch/DGE/DUDGE/MOPOPGEN/tyates/perturb/svMIL/scripts/liftover_enhancer_positions.py

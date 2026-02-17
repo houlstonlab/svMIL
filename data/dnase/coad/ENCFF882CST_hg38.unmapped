@@ -1,0 +1,56 @@
+#Split in new
+chr1	13048795	13048945	.	0	.	17	-1	-1	75
+#Partially deleted in new
+chr1	120838575	120838725	.	0	.	713	-1	-1	75
+#Partially deleted in new
+chr1	120925515	120925665	.	0	.	142	-1	-1	75
+#Split in new
+chr1	143743491	143743641	.	0	.	69	-1	-1	75
+#Split in new
+chr1	143743641	143743791	.	0	.	32.0	-1	-1	75
+#Split in new
+chr1	143744035	143744185	.	0	.	89	-1	-1	75
+#Split in new
+chr1	144520955	144521105	.	0	.	92	-1	-1	75
+#Split in new
+chr1	144593615	144593765	.	0	.	106	-1	-1	75
+#Partially deleted in new
+chr1	144594279	144594429	.	0	.	42	-1	-1	75
+#Partially deleted in new
+chr1	145092635	145092785	.	0	.	83	-1	-1	75
+#Partially deleted in new
+chr1	147551319	147551469	.	0	.	18	-1	-1	75
+#Partially deleted in new
+chr1	148241455	148241605	.	0	.	296	-1	-1	75
+#Split in new
+chr1	148248015	148248165	.	0	.	121	-1	-1	75
+#Split in new
+chr1	149684115	149684265	.	0	.	115	-1	-1	75
+#Partially deleted in new
+chr14	19552945	19553095	.	0	.	12	-1	-1	75
+#Partially deleted in new
+chr17	81060355	81060505	.	0	.	137	-1	-1	75
+#Partially deleted in new
+chr2	91635174	91635324	.	0	.	15.0	-1	-1	75
+#Split in new
+chr8	2075697	2075847	.	0	.	366	-1	-1	75
+#Partially deleted in new
+chr8	145596482	145596632	.	0	.	65.0	-1	-1	75
+#Partially deleted in new
+chr9	40328427	40328577	.	0	.	15	-1	-1	75
+#Split in new
+chr9	45726775	45726925	.	0	.	26	-1	-1	75
+#Split in new
+chr9	45729295	45729445	.	0	.	54	-1	-1	75
+#Partially deleted in new
+chr9	45729655	45729805	.	0	.	26	-1	-1	75
+#Split in new
+chr9	45732075	45732225	.	0	.	20	-1	-1	75
+#Split in new
+chr9	45734295	45734445	.	0	.	48	-1	-1	75
+#Partially deleted in new
+chr9	68830551	68830701	.	0	.	26	-1	-1	75
+#Partially deleted in new
+chr9	70645962	70646112	.	0	.	52	-1	-1	75
+#Partially deleted in new
+chrX	148622315	148622465	.	0	.	181	-1	-1	75

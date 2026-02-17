@@ -22,13 +22,73 @@ import gzip
 
 class InputParser:
 
+	def getSVs_nunes(self, svDir, cancerType):
+
+		#read in the metadata file and get the right file identifiers
+		metadataFile = settings.files['metadataNunes']
+
+		#save the IDs of the patients with this cancer type
+		cancerTypeIds = dict()
+		with open(metadataFile, 'rt') as inF:
+
+			for line in inF:
+				line = line.strip()
+				if not line or line.startswith('sample_id'):  # skip header and empty lines
+					continue
+				splitLine = line.split('\t')
+				if len(splitLine) >= 2 and splitLine[1].strip() == cancerType:
+					sampleId = splitLine[0].strip()
+
+					cancerTypeIds[sampleId] = sampleId
+		print(len(cancerTypeIds))
+
+		#### check if we have expression data for these samples.
+		expressionDir = settings.files['expressionDir']
+		# Sample IDs are given as, e.g., CRC.SW.U0465.T in the expression files
+		matchedExpressionFiles = glob.glob(expressionDir + '/CPM_TMM.txt')
+
+		if len(matchedExpressionFiles) < 1:
+			raise FileNotFoundError('Missing expression data for Nunes dataset')
+
+		#Then read the SV files for the right cancer type
+		allSVs = []
+		for sampleId in cancerTypeIds:
+			#use glob to find the right file
+			#matchedFiles = glob.glob(svDir + '/*_' + patientId + '/*.purple.sv.ann.vcf.gz')
+			#this is a bit slow
+			#maybe combine patient & sample id to make it faster.
+			matchedFiles = glob.glob(svDir + '/*_sv_*' + sampleId + '-T*' + '.vcf.gz')
+			
+			# Filter out files ending with .SV.vcf.gz
+			matchedFiles = [f for f in matchedFiles if not f.endswith('.SV.vcf.gz')]
+
+			#if we don't have SVs for this sample, skip it.
+			if len(matchedFiles) < 1:
+				print('Skipping ', sampleId, ' which has no SVs')
+				continue
+
+			#there should be just 1 file
+			sampleSVFile = matchedFiles[0]
+			print('Parsing SVs for file: ', sampleSVFile)
+
+			#read in the SVs from this file
+			sampleSVs = self.getSVsFromFile_nunes_single(sampleSVFile, sampleId)
+			allSVs = allSVs + sampleSVs
+
+		allSVs = np.array(allSVs, dtype='object')
+		print(allSVs.shape)
+		if len(allSVs) > 0:
+			print(len(np.unique(allSVs[:,7])))
+
+		return allSVs
+
 	def getSVs_hmf(self, svDir, cancerType):
 
 		#read in the metadata file and get the right file identifiers
 		metadataFile = settings.files['metadataHMF']
 
 		#save the IDs of the patients with this cancer type
-		cancerTypeIds = dict()
+		cancerTypeIds = []
 		with open(metadataFile, 'rb') as inF:
 
 			for line in inF:
@@ -37,33 +97,23 @@ class InputParser:
 				splitLine = line.split('\t')
 				if splitLine[6] == cancerType:
 					sampleId = splitLine[1]
-					patientId = splitLine[0]
+					sampleId = splitLine[0]
 
-					cancerTypeIds[sampleId] = patientId
+					cancerTypeIds.append(sampleId)
 		print(len(cancerTypeIds))
 		#Then read the SV files for the right cancer type
 		allSVs = []
-		count = 0
 		for sampleId in cancerTypeIds:
-			patientId = cancerTypeIds[sampleId]
 
 			#use glob to find the right file
 			#matchedFiles = glob.glob(svDir + '/*_' + patientId + '/*.purple.sv.ann.vcf.gz')
 			#this is a bit slow
 			#maybe combine patient & sample id to make it faster.
-			matchedFiles = glob.glob(svDir + '/*_' + patientId + '/' + sampleId + '.purple.sv.ann.vcf.gz')
+			matchedFiles = glob.glob(svDir + '/*_sv_*' + sampleId + '-T*.vcf.gz')
 
 			#if we don't have SVs for this sample, skip it.
 			if len(matchedFiles) < 1:
 				print('Skipping ', sampleId, ' which has no SVs')
-				continue
-
-			#### check if we have expression for this sample.
-			expressionDir = settings.files['expressionDir']
-			matchedExpressionFiles = glob.glob(expressionDir + sampleId)
-
-			if len(matchedExpressionFiles) < 1:
-				print('Skipping ', sampleId, ' due to missing expression data')
 				continue
 
 			#there should be just 1 file
@@ -102,6 +152,165 @@ class InputParser:
 
 		return allSVs
 
+	def getSVsFromFile_nunes_single(self, svFile, sampleName):
+		"""
+			Parse SVs from a single Nunes VCF file.
+			
+			svFile: (string) Path to VCF file
+			sampleName: (string) Sample identifier
+			
+			return:
+			variantsList: (list) list of SVs from this sample
+		"""
+		
+		addedVariants = []
+		variantsList = []
+		with gzip.open(svFile, 'rb') as inF:
+			
+			for line in inF:
+				line = line.decode('ISO-8859-1')
+				
+				if re.search('^#', line): # skip header
+					continue
+				
+				splitLine = line.split("\t")
+				
+				chr1 = splitLine[0]
+				pos1 = int(splitLine[1])
+				pos2Info = splitLine[4]
+				infoField = splitLine[7]
+				
+				# Extract SVCLASS from INFO field for easier classification
+				svClassMatch = re.search('SVCLASS=([^;]+)', infoField)
+				if svClassMatch:
+					svClass = svClassMatch.group(1)
+				else:
+					svClass = None
+				
+				# Match the end position and orientation. If there is no colon, this is an insertion, which we can skip.
+				if not re.search(':', pos2Info):
+					continue
+				
+				# Parse breakend notation to determine orientations
+				# Format patterns:
+				# N[chr:pos[  or  N]chr:pos]  = brackets after base
+				# [chr:pos[N  or  ]chr:pos]N  = brackets before base
+				
+				if re.match('[A-Z]*\[.*\:\d+\[$', pos2Info):
+					# Format: N[chr:pos[ - both point left
+					o1 = '-'
+					o2 = '-'
+				elif re.match('[A-Z]*\].*\:\d+\]$', pos2Info):
+					# Format: N]chr:pos] - both point right
+					o1 = '+'
+					o2 = '+'
+				elif re.match('^\].*\:\d+\][A-Z]*', pos2Info):
+					# Format: ]chr:pos]N - current points right, mate points left
+					o1 = '+'
+					o2 = '-'
+				elif re.match('^\[.*\:\d+\[[A-Z]*', pos2Info):
+					# Format: [chr:pos[N - current points left, mate points right
+					o1 = '-'
+					o2 = '+'
+				else:
+					print('unmatched: ', pos2Info)
+					print(line)
+					continue
+				
+				# Get the chr2 information
+				chr2 = re.search('[\[\]]+(.*):(\d+).*', pos2Info).group(1)
+				pos2 = int(re.search('.*\:(\d+).*', pos2Info).group(1))
+				
+				# Determine SV type
+				# Use SVCLASS from INFO field if available, otherwise infer from orientations
+				svType = ''
+				if svClass:
+					# Map SVCLASS values to our standard types
+					if svClass == 'deletion':
+						svType = 'DEL'
+					elif svClass == 'tandem-duplication':
+						svType = 'DUP'
+					elif svClass == 'inversion':
+						svType = 'INV'
+					elif svClass == 'translocation':
+						svType = 'ITX'
+					else:
+						# Unknown type, skip
+						print('unknown sv type, ', line)
+						continue
+				else:
+					print('unknown sv type, ', line)
+					continue
+				
+				# Skip SV types that we do not consider
+				if svType not in ['DEL', 'DUP', 'ITX', 'INV']:
+					continue
+				
+				# Default positions
+				s1 = pos1
+				e1 = pos1
+				s2 = pos2
+				e2 = pos2
+				orderedChr1 = chr1
+				orderedChr2 = chr2
+				
+				# Switch chromosomes if necessary to maintain consistent ordering
+				if chr1 != chr2:
+					# Handle special chromosomes (X, Y, MT) ordering
+					chr1_clean = chr1.replace('chr', '')
+					chr2_clean = chr2.replace('chr', '')
+					
+					if chr1_clean == 'Y' and chr2_clean == 'X':
+						orderedChr1 = chr2
+						orderedChr2 = chr1
+					elif (chr1_clean in ['X', 'Y', 'MT']) and (chr2_clean not in ['X', 'Y', 'MT']):
+						orderedChr1 = chr2
+						orderedChr2 = chr1
+					elif (chr1_clean not in ['X', 'Y', 'MT']) and (chr2_clean not in ['X', 'Y', 'MT']):
+						# Both are numeric chromosomes
+						chr1_num = int(chr1_clean)
+						chr2_num = int(chr2_clean)
+						if chr1_num > chr2_num:
+							orderedChr1 = chr2
+							orderedChr2 = chr1
+					elif (chr1_clean in ['X', 'Y', 'MT']) and (chr2_clean in ['X', 'Y', 'MT']):
+						if chr1_clean == 'Y' and chr2_clean == 'X':
+							orderedChr1 = chr2
+							orderedChr2 = chr1
+						elif chr1_clean == 'MT' and chr2_clean in ['X', 'Y']:
+							orderedChr1 = chr2
+							orderedChr2 = chr1
+					
+					# Always switch the coordinates as well if chromosomes are switched
+					if orderedChr1 == chr2:
+						s1 = pos2
+						e1 = pos2
+						s2 = pos1
+						e2 = pos1
+				else:
+					# If the chr are the same but the positions are reversed, change these as well
+					if pos2 < pos1:
+						s1 = pos2
+						e1 = pos2
+						s2 = pos1
+						e2 = pos1
+				
+				# Ensure chr notation is present
+				finalChr1 = orderedChr1 if orderedChr1.startswith('chr') else 'chr' + orderedChr1
+				finalChr2 = orderedChr2 if orderedChr2.startswith('chr') else 'chr' + orderedChr2
+				
+				svObject = SV(finalChr1, s1, e1, o1, finalChr2, s2, e2, o2, sampleName, settings.general['cancerType'], svType)
+				
+				# Check if this SV is already added (may happen with paired breakends)
+				svStr = finalChr1 + "_" + str(s1) + "_" + str(e1) + "_" + finalChr2 + "_" + str(s2) + "_" + str(e2) + "_" + sampleName
+				
+				if svStr in addedVariants:
+					continue
+				
+				variantsList.append([finalChr1, s1, e1, finalChr2, s2, e2, settings.general['cancerType'], sampleName, svObject])
+				addedVariants.append(svStr)
+		
+		return variantsList
 
 	def getSVsFromFile_hmf(self, svFile, sampleName):
 
@@ -117,12 +326,7 @@ class InputParser:
 				if re.search('^#', line): #skip header
 					continue
 				
-				#skip the SV if it did not pass.
 				splitLine = line.split("\t")
-
-				filterInfo = splitLine[6]
-				if filterInfo != 'PASS':
-					continue
 
 				chr1 = splitLine[0]
 				pos1 = int(splitLine[1])
@@ -298,6 +502,7 @@ class InputParser:
 			lineCount = 0
 			header = []
 			for line in geneFile:
+				line = line.strip()
 				splitLine = line.split("\t")
 				#First extract the header and store it in the dictionary to remove dependency on the order of columns in the file
 				if lineCount < 1:
@@ -323,7 +528,7 @@ class InputParser:
 				start = dashSplitPosition[0].replace('"',"") #apparently there are some problems with the data, sometimes there are random quotes in there
 				end = dashSplitPosition[1].replace('"', "")
 				
-				if start == '' or end == '':
+				if start == '' or end == '' or start == 'NA' or end == 'NA':
 					continue
 				
 				#also get the cancer types
@@ -365,11 +570,9 @@ class InputParser:
 			causalGeneDict[geneObj.name] = 1			
 		
 		nonCausalGeneList = []
-		nonCausalGeneNameDict = dict() #dictionary to keep the names of genes that are already in our list and don't need to be sampled again. 
 		
 		with open(nonCausalGeneFile, 'r') as geneFile:
 			
-			lineCount = 0
 			for line in geneFile:
 				line = line.strip()
 				splitLine = line.split("\t")
@@ -419,11 +622,7 @@ class InputParser:
 		#Read the TAD data into a list
 		tadData = []
 		with open(tadFile, "r") as f:
-			lineCount = 0
 			for line in f:
-				if lineCount < 2: #skip header
-					lineCount += 1
-					continue
 				line = line.strip()
 				splitLine = line.split("\t")
 
@@ -507,11 +706,7 @@ class InputParser:
 		ctcfSites = []
 		with open(ctcfFile, 'r') as f:
 			
-			lineCount = 0
 			for line in f:
-				if lineCount < 1:
-					lineCount += 1
-					continue
 				
 				line = line.strip()
 				splitLine = line.split("\t")
@@ -548,11 +743,7 @@ class InputParser:
 		eQTLs = []
 		with open(eQTLFile, 'r') as f:
 			
-			lineCount = 0
 			for line in f:
-				if lineCount < 1:
-					lineCount += 1
-					continue
 				
 				line = line.strip()
 				splitLine = line.split("\t")
@@ -603,11 +794,7 @@ class InputParser:
 		enhancers = []
 		with open(enhancerFile, 'r') as f:
 			
-			lineCount = 0
 			for line in f:
-				if lineCount < 1:
-					lineCount += 1
-					continue
 				
 				line = line.strip()
 				splitLine = line.split("\t")
@@ -669,11 +856,7 @@ class InputParser:
 		promoters = []
 		with open(promoterFile, 'r') as f:
 
-			lineCount = 0
 			for line in f:
-				if lineCount < 1:
-					lineCount += 1
-					continue
 				
 				line = line.strip()
 				splitLine = line.split("\t")
@@ -720,11 +903,7 @@ class InputParser:
 		cpgIslands = []
 		with open(cpgFile, 'r') as f:
 			
-			lineCount = 0
 			for line in f:
-				if lineCount < 1:
-					lineCount += 1
-					continue
 				
 				line = line.strip()
 				splitLine = line.split("\t")
@@ -758,11 +937,7 @@ class InputParser:
 		tfs = []
 		with open(tfFile, 'r') as f:
 			print(tfFile)
-			lineCount = 0
 			for line in f:
-				if lineCount < 1:
-					lineCount += 1
-					continue
 				
 				line = line.strip()
 				splitLine = line.split("\t")
@@ -822,11 +997,7 @@ class InputParser:
 		histoneMarks = []
 		with open(histoneFile, 'r') as f:
 			
-			lineCount = 0
 			for line in f:
-				if lineCount < 1:
-					lineCount += 1
-					continue
 				
 				line = line.strip()
 				splitLine = line.split("\t")
@@ -860,11 +1031,7 @@ class InputParser:
 		dnaseISites = []
 		with open(dnaseIFile, 'r') as f:
 			
-			lineCount = 0
 			for line in f:
-				if lineCount < 1:
-					lineCount += 1
-					continue
 				
 				line = line.strip()
 				splitLine = line.split("\t")
@@ -928,11 +1095,7 @@ class InputParser:
 
 		rnaPolSites = []
 		with open(rnaPolFile, 'r') as f:
-			lineCount = 0
 			for line in f:
-				if lineCount < 1:
-					lineCount += 1
-					continue
 
 				line = line.strip()
 				splitLine = line.split("\t")

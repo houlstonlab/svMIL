@@ -12,7 +12,10 @@ import glob
 #provide source and automatically cluster the bed files
 folder = sys.argv[1]
 
-dataFiles = glob.glob(folder + '*.bed')
+# exclude already clustered files
+# dataFiles = glob.glob(folder + '*[!_clustered].bed')
+# specifically choose lifted over hg38 files
+dataFiles = glob.glob(folder + '*_hg38.bed')
 for dataFile in dataFiles:
 
 
@@ -23,6 +26,15 @@ for dataFile in dataFiles:
 # dataFile = '../../data/histones/hmec/ENCFF336DDM_H3K4me1.bed'
 # #dataFile = 'tf_experimentallyValidated.bed'
 	data = np.loadtxt(dataFile, dtype='object')
+	
+	# Detect number of columns
+	if data.ndim == 1:
+		# Single row case
+		num_cols = len(data)
+	else:
+		num_cols = data.shape[1] if data.ndim > 1 else 3
+	
+	has_extra_cols = num_cols > 3
 
 	#sort the file for this to work
 
@@ -37,18 +49,26 @@ for dataFile in dataFiles:
 		if mark[0] not in chrMap:
 			continue
 		mappedChr = chrMap[mark[0]]
-
-		mappedData.append([mappedChr, int(mark[1]), int(mark[2]), mark[3], mark[4]])
+		
+		if has_extra_cols:
+			mappedData.append([mappedChr, int(mark[1]), int(mark[2]), mark[3], mark[4]])
+		else:
+			mappedData.append([mappedChr, int(mark[1]), int(mark[2])])
 
 	mappedData = np.array(mappedData)
 
-	sortedData = mappedData[np.lexsort((mappedData[:,1], mappedData[:,0]))]
-	data = sortedData
+	# fixed to correctly interpret the data as ints not strings
+	sortedData = mappedData[np.lexsort((mappedData[:,1].astype(int), mappedData[:,0].astype(int)))]
 
 	import pandas as pd
-	df = pd.DataFrame(mappedData, columns=['chr', 'start', 'end', '.', 'signal'])
+	# changed to use sortedData instead of mappedData
+	if has_extra_cols:
+		df = pd.DataFrame(sortedData, columns=['chr', 'start', 'end', '.', 'signal'])
+	else:
+		df = pd.DataFrame(sortedData, columns=['chr', 'start', 'end'])
 
-	df = df.sort_values(['chr', 'start', 'end'])
+	# this line was not sorting correctly
+	# df = df.sort_values(['chr', 'start', 'end'])
 
 	print(df)
 	data = df.to_numpy()
@@ -64,7 +84,10 @@ for dataFile in dataFiles:
 		else:
 			chrNotation = 'chr' + str(mark[0])
 
-		chrData.append([chrNotation, mark[1], mark[2], mark[3], mark[4]])
+		if has_extra_cols:
+			chrData.append([chrNotation, mark[1], mark[2], mark[3], mark[4]])
+		else:
+			chrData.append([chrNotation, mark[1], mark[2]])
 
 	chrData = np.array(chrData, dtype='object')
 
@@ -77,23 +100,32 @@ for dataFile in dataFiles:
 
 		#if this is the first eQTL, it is always the start of a cluster.
 		if markInd == 0:
-			currentCluster.append([mark[0], mark[1], mark[2], mark[3], mark[4]])
+			if has_extra_cols:
+				currentCluster.append([mark[0], mark[1], mark[2], mark[3], mark[4]])
+			else:
+				currentCluster.append([mark[0], mark[1], mark[2]])
 		else:
 			#otherwise, check if the distance to the previous is within the window size.
 			previousMark = data[markInd-1,:]
 
-			if float(mark[1]) - float(previousMark[1]) <= windowSize and previousMark[0] == mark[0]:
-				currentCluster.append([mark[0], mark[1], mark[2], mark[3], mark[4]])
+			# abs() avoids unordered marks (giving negative distances) from being clustered together.
+			if abs(float(mark[1]) - float(previousMark[1])) <= windowSize and previousMark[0] == mark[0]:
+				if has_extra_cols:
+					currentCluster.append([mark[0], mark[1], mark[2], mark[3], mark[4]])
+				else:
+					currentCluster.append([mark[0], mark[1], mark[2]])
 			else:
 				clusters.append(currentCluster)
 				currentCluster = []
-				currentCluster.append([mark[0], mark[1], mark[2], mark[3], mark[4]])
+				if has_extra_cols:
+					currentCluster.append([mark[0], mark[1], mark[2], mark[3], mark[4]])
+				else:
+					currentCluster.append([mark[0], mark[1], mark[2]])
 
 
 	#remaining eQTLs
 	clusters.append(currentCluster)
 	clusters = np.array(clusters, dtype='object')
-	currentCluster = []
 
 	print(clusters)
 
@@ -109,14 +141,20 @@ for dataFile in dataFiles:
 			avgSignal = 0
 			for mark in cluster:
 				if markInd == 0:
-					clusterStart = mark[1]
+					clusterStart = int(mark[1])
+					clusterEnd = int(mark[2])
 					markInd += 1
-				clusterEnd = mark[2]
-				avgSignal += int(mark[4])
+				clusterEnd = np.max([clusterEnd, int(mark[2])]) # now uses maximum end position of any mark in cluster
+				if has_extra_cols:
+					avgSignal += int(mark[4])
 
 			chrom = cluster[0][0]
-			avgSignal = int(avgSignal / len(cluster))
-
-			clusterLine = chrom + '\t' + str(clusterStart) + '\t' + str(clusterEnd) + '\t.\t' + str(avgSignal) + '\n'
+			
+			if has_extra_cols:
+				avgSignal = int(avgSignal / len(cluster))
+				clusterLine = chrom + '\t' + str(clusterStart) + '\t' + str(clusterEnd) + '\t.\t' + str(avgSignal) + '\n'
+			else:
+				clusterLine = chrom + '\t' + str(clusterStart) + '\t' + str(clusterEnd) + '\n'
+			
 			outF.write(clusterLine)
 

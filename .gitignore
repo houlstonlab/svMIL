@@ -1,2 +1,14 @@
+._.DS_Store
 .DS_Store
 ./src/.DS_Store
+GTEx_Analysis_v7.metasoft.txt
+GTEx_Analysis_v8.metasoft.txt
+*_eQTLs*.bed
+._*
+*.npy
+*.e
+*.o
+*.pkl
+output_colorectal/
+__pycache__/
+*.pyc

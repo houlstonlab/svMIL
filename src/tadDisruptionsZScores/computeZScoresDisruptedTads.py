@@ -79,7 +79,9 @@ if settings.general['source'] == 'HMF':
 elif settings.general['source'] == 'PCAWG':
 	svDir = settings.files['svDir']
 	svData = InputParser().getSVsFromFile_pcawg(svDir, settings.general['cancerType'])
-
+elif settings.general['source'] == 'Nunes':
+	svDir = settings.files['svDir']
+	svData = InputParser().getSVs_nunes(svDir, settings.general['cancerType'])
 else:
 	print('Other data sources not supported')
 	exit(1)

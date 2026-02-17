@@ -299,8 +299,25 @@ for svType in svTypes:
 
 		newNegativeBags.append(instances)
 
-	positiveBags = np.array(newPositiveBags)
-	negativeBags = np.array(newNegativeBags)
+	# Filter out empty bags after variance filtering
+	filteredPositiveBags = []
+	filteredPositiveBagPairNames = []
+	for i, bag in enumerate(newPositiveBags):
+		if len(bag) > 0:  # Only keep bags with instances
+			filteredPositiveBags.append(bag)
+			filteredPositiveBagPairNames.append(positiveBagPairNames[i])
+	
+	filteredNegativeBags = []
+	filteredNegativeBagPairNames = []
+	for i, bag in enumerate(newNegativeBags):
+		if len(bag) > 0:  # Only keep bags with instances
+			filteredNegativeBags.append(bag)
+			filteredNegativeBagPairNames.append(negativeBagPairNames[i])
+	
+	positiveBags = np.array(filteredPositiveBags)
+	negativeBags = np.array(filteredNegativeBags)
+	positiveBagPairNames = np.array(filteredPositiveBagPairNames)
+	negativeBagPairNames = np.array(filteredNegativeBagPairNames)
 	
 	print(positiveBags.shape)
 	

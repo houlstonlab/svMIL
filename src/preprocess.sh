@@ -19,7 +19,8 @@ fi
 ### CANCER TYPE-SPECIFIC DATA PROCESSING ###
 #These are the cancer types we want to run the tool for, so preprocess their data.
 
-types=('hmec' 'ov' 'gm12878' 'coad' 'luad' 'urinaryTract' 'prostate' 'esophagus' 'skin' 'pancreas' 'uterus' 'nervousSystem' 'kidney')
+# types=('hmec' 'ov' 'gm12878' 'coad' 'luad' 'urinaryTract' 'prostate' 'esophagus' 'skin' 'pancreas' 'uterus' 'nervousSystem' 'kidney')
+types=('coad')
 
 ### PARSE EQTLS ###
 #This requires download of GTEx_Analysis_v7.metasoft.txt.gz. See eQTLs/readme.txt.
@@ -28,16 +29,16 @@ run=false
 
 if $run; then
 	runFolder='./DataProcessing'
-	inFile='../data/eQTLs/GTEx_Analysis_v7.metasoft.txt'
+	inFile='../data/eQTLs/GTEx_Analysis_v8.metasoft.txt'
 	geneLookupFile='../data/genes/ensemblGenesHg19'
 
 	#loop over the cancer types
 	for type in ${types[@]}; do
 		outFolder="../data/eQTLs/$type/"
 
-		if [ "$type" = "kidney" ]; then
-			inFile='../data/eQTLs/GTEx_Analysis_v8.metasoft.txt'
-		fi
+		# if [ "$type" == "kidney" ]; then
+		# 	inFile='../data/eQTLs/GTEx_Analysis_v8.metasoft.txt'
+		# fi
 
 		python "$runFolder/filterEQTLs.py" "$inFile" "$geneLookupFile" "$outFolder" "$type"
 
@@ -46,7 +47,7 @@ if $run; then
 
 fi
 
-run=false
+run=true
 if $run; then
 	runFolder='./DataProcessing/'
 

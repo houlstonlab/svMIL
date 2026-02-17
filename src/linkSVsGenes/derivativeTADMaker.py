@@ -607,10 +607,83 @@ class DerivativeTADMaker:
 				
 				svStr = svData[0] + "_" + str(svData[1]) + "_" + str(svData[2]) + "_" + svData[3] + "_" + str(svData[4]) + "_" + str(svData[5]) + "_" + svData[8].sampleName + "_" + str(leftMostTad[0][3].startStrength) + '_' + str(leftMostTad[0][3].endStrength) + '_' + str(rightMostTad[0][3].startStrength) + '_' + str(rightMostTad[0][3].endStrength) + '_' + svData[8].svType  + "_" + str(leftMostTad[0][3].startStrengthSignal) + '_' + str(leftMostTad[0][3].endStrengthSignal) + '_' + str(rightMostTad[0][3].startStrengthSignal) + '_' + str(rightMostTad[0][3].endStrengthSignal)
 				
+				# DEBUG: Check if this is an IGF2 duplication to save debug info
+				igf2_genes = [g for g in svGenesFirstTad if g.name == 'IGF2']
+				if len(igf2_genes) > 0 and len(svInteractionsLastTad) > 0:
+					debug_output = []
+					debug_output.append("="*80)
+					debug_output.append(f"DEBUG: IGF2 DUPLICATION DETECTED")
+					debug_output.append(f"Patient: {svData[8].sampleName}")
+					debug_output.append(f"SV: {svData[0]}:{svData[1]}-{svData[5]}")
+					debug_output.append(f"Left TAD: {leftMostTad[0][0]}:{leftMostTad[0][1]}-{leftMostTad[0][2]}")
+					debug_output.append(f"Right TAD: {rightMostTad[0][0]}:{rightMostTad[0][1]}-{rightMostTad[0][2]}")
+					debug_output.append("")
+					debug_output.append(f"svGenesFirstTad (genes in left TAD): {len(svGenesFirstTad)} genes")
+					for g in svGenesFirstTad:
+						debug_output.append(f"  - {g.name} ({g.chromosome}:{g.start}-{g.end})")
+					debug_output.append("")
+					debug_output.append(f"svInteractionsLastTad (elements from right TAD): {len(svInteractionsLastTad)} elements")
+					
+					# Count elements by type
+					element_counts = {}
+					enhancer_examples = []
+					for elem in svInteractionsLastTad:
+						elem_type = elem[3]
+						if elem_type not in element_counts:
+							element_counts[elem_type] = 0
+						element_counts[elem_type] += 1
+						if elem_type == 'enhancer' and len(enhancer_examples) < 10:
+							# elem format: [chr, start, end, type, gene_name, ...]
+							enhancer_examples.append(f"    {elem[0]}:{elem[1]}-{elem[2]} -> {elem[4] if len(elem) > 4 else 'NA'}")
+					
+					debug_output.append(f"Element counts by type:")
+					for elem_type, count in sorted(element_counts.items()):
+						debug_output.append(f"  {elem_type}: {count}")
+					
+					if len(enhancer_examples) > 0:
+						debug_output.append("")
+						debug_output.append("Example enhancers (first 10):")
+						debug_output.extend(enhancer_examples)
+					
+					# Save to file before adding to genes
+					with open('/data/scratch/DGE/DUDGE/MOPOPGEN/tyates/perturb/svMIL/debug_igf2_dup_BEFORE.txt', 'a') as f:
+						f.write('\n'.join(debug_output) + '\n')
+				
 				for gene in svGenesFirstTad:
 					
 					gene.addGainedElements(svInteractionsLastTad, svData[7])
 					gene.addGainedElementsSVs(svInteractionsLastTad, svStr)
+					
+					# DEBUG: Save IGF2's gained elements after adding
+					if gene.name == 'IGF2' and len(svInteractionsLastTad) > 0:
+						debug_output = []
+						debug_output.append("")
+						debug_output.append(f"AFTER addGainedElementsSVs for IGF2:")
+						debug_output.append(f"svStr: {svStr}")
+						
+						if svStr in gene.gainedElementsSVs:
+							debug_output.append(f"gene.gainedElementsSVs[svStr] keys: {list(gene.gainedElementsSVs[svStr].keys())}")
+							debug_output.append(f"Counts:")
+							for elem_type, count in gene.gainedElementsSVs[svStr].items():
+								debug_output.append(f"  {elem_type}: {count}")
+						else:
+							debug_output.append(f"WARNING: svStr not found in gene.gainedElementsSVs!")
+							debug_output.append(f"Available keys: {list(gene.gainedElementsSVs.keys())}")
+						
+						debug_output.append("")
+						debug_output.append(f"gene.gainedElements[{svData[7]}]:")
+						if svData[7] in gene.gainedElements:
+							debug_output.append(f"Keys: {list(gene.gainedElements[svData[7]].keys())}")
+							for elem_type, count in gene.gainedElements[svData[7]].items():
+								debug_output.append(f"  {elem_type}: {count}")
+						else:
+							debug_output.append(f"WARNING: Sample not found in gene.gainedElements!")
+						
+						debug_output.append("="*80)
+						debug_output.append("")
+						
+						with open('/data/scratch/DGE/DUDGE/MOPOPGEN/tyates/perturb/svMIL/debug_igf2_dup_AFTER.txt', 'a') as f:
+							f.write('\n'.join(debug_output) + '\n')
 				
 				for gene in svGenesLastTad:
 				
